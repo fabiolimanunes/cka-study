@@ -1,0 +1,41 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  # Box Ubuntu 22.04 LTS (Jammy)
+  # Usado devido a bugs no systemd-networkd em caixas do Ubuntu 24.04 com VirtualBox/Vagrant.
+  config.vm.box = "ubuntu/jammy64"
+  
+  # Network configurations
+  NETWORK_PREFIX = "192.168.56"
+
+  # Control Plane (Master Node)
+  config.vm.define "master" do |master|
+    master.vm.hostname = "master"
+    master.vm.network "private_network", ip: "#{NETWORK_PREFIX}.10"
+    master.vm.network "forwarded_port", guest: 6443, host: 6443, host_ip: "0.0.0.0"
+
+    master.vm.provider "virtualbox" do |vb|
+      vb.memory = "2048"
+      vb.cpus = 2
+    end
+    # Bootstrap scripts
+    master.vm.provision "shell", path: "scripts/01-install-containerd.sh"
+    master.vm.provision "shell", path: "scripts/02-install-kube.sh"
+  end
+
+  # Worker Nodes
+  (1..2).each do |i|
+    config.vm.define "worker#{i}" do |worker|
+      worker.vm.hostname = "worker#{i}"
+      worker.vm.network "private_network", ip: "#{NETWORK_PREFIX}.1#{i}"
+      worker.vm.provider "virtualbox" do |vb|
+        vb.memory = "1024" # 1GB is usually enough for worker nodes but you can increase it.
+        vb.cpus = 1
+      end
+      # Bootstrap scripts
+      worker.vm.provision "shell", path: "scripts/01-install-containerd.sh"
+      worker.vm.provision "shell", path: "scripts/02-install-kube.sh"
+    end
+  end
+end
